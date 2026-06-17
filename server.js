@@ -1,7 +1,6 @@
 const https = require('https');
 const http = require('http');
 
-// Clé secrète depuis variable d'environnement Render
 const SECRET_KEY = process.env.YABETOO_SECRET_KEY;
 const YABETOO_API = "pay.api.yabetoopay.com";
 
@@ -59,10 +58,9 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === 'POST' && req.url === '/payment') {
-
     if (!SECRET_KEY) {
       res.writeHead(500, corsHeaders());
-      res.end(JSON.stringify({ error: 'Clé secrète manquante sur le serveur' }));
+      res.end(JSON.stringify({ error: 'Clé secrète manquante' }));
       return;
     }
 
