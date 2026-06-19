@@ -153,9 +153,12 @@
             </div>
 
             <div class="form-row">
-                <label>🔒 Lien PDF (téléchargement après paiement) *</label>
-                <input type="text" id="pdfLink" required placeholder="https://drive.google.com/uc?export=download&id=XXXX">
-                <small>Lien Google Drive en mode "Tout le monde avec le lien"</small>
+                <label>🔒 Lien(s) PDF (téléchargement après paiement) *</label>
+                <textarea id="pdfLink" required placeholder="https://drive.google.com/uc?export=download&id=XXXX"></textarea>
+                <small>
+                    ✅ <strong>Un seul livre :</strong> colle un seul lien<br>
+                    📦 <strong>Pack de plusieurs PDF :</strong> colle un lien par ligne (un lien à chaque retour à la ligne)
+                </small>
             </div>
 
             <div class="modal-actions">
@@ -242,7 +245,7 @@
                         <div class="book-admin-title">${b.title}</div>
                         <div class="book-admin-price">${Number(b.price).toLocaleString()} FCFA</div>
                         <div class="book-admin-meta ${!b.pdfLink ? 'no-pdf' : ''}">
-                            ${b.pdfLink ? '✅ PDF lié' : '⚠️ Aucun PDF lié !'}
+                            ${b.pdfLink ? '✅ ' + b.pdfLink.split(',').filter(l=>l.trim()).length + ' PDF lié(s)' : '⚠️ Aucun PDF lié !'}
                         </div>
                         <div class="book-admin-actions">
                             <button class="btn-edit" onclick="editBook(${b.id})">✏️ Modifier</button>
@@ -274,7 +277,7 @@
         document.getElementById('importance').value = book.importance || '';
         document.getElementById('price').value = book.price || '';
         document.getElementById('coverImage').value = book.coverImage || '';
-        document.getElementById('pdfLink').value = book.pdfLink || '';
+        document.getElementById('pdfLink').value = (book.pdfLink || '').split(',').join('\n');
         document.getElementById('modalOverlay').classList.add('active');
     }
 
@@ -295,6 +298,10 @@
             coverImage: document.getElementById('coverImage').value,
             cover: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
             pdfLink: document.getElementById('pdfLink').value
+                .split('\n')
+                .map(l => l.trim())
+                .filter(l => l.length > 0)
+                .join(',')
         };
 
         try {
