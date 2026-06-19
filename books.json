@@ -2,13 +2,13 @@
   {
     "id": 1,
     "category": "Formations",
-    "title": "REUSSIR au bac c et bac D , 500 exos et corrigées",
+    "title": "REUSSIR au bac c et bac D , 500 exos avec corrigés",
     "type": "formation",
-    "description": "un accompagneuteur des meilleurs",
-    "importance": "tu as les bases et tu deviens excellent",
+    "description": "Le livre de préparation le plus complet du marché pour réussir l'épreuve d'Algèbre au BAC C et D en République du Congo. 500 exercices progressifs, du plus simple au plus difficile, avec questions guidées et temps de résolution.",
+    "importance": " Version courte pour WhatsApp/Facebook\n\n\"Pourquoi ce livre change tout ? Parce qu'il ne donne pas juste des réponses — il construit la confiance, la rapidité et la maîtrise, étape par étape. C'est l'outil que tout élève sérieux devrait avoir avant la rentrée. 500 exercices, 2000 FCFA, disponible sur PascalShop.\"",
     "price": 2000,
     "cover": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-    "coverImage": "https://imgur.com/a/w3OhADe",
+    "coverImage": "https://i.imgur.com/qjAMy7S.png",
     "pdfLink": "https://drive.google.com/file/d/1hgyM9XKJAYMiHuV2HIsz6U-mHw0psMVM/view?usp=sharing"
   }
 ]
