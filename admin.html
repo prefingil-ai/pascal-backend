@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin - Boutique Pascal</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    :root {
+        --blue-dark:#0F2D6B; --blue-mid:#1A4BAD; --blue-light:#3B7DD8;
+        --blue-pale:#EBF2FF; --white:#FFFFFF; --text:#1E2D45;
+        --gray:#6B7A99; --border:#D0DCF0; --success:#10B981; --danger:#EF4444;
+    }
+    body { font-family:'Inter',sans-serif; background:#F4F7FE; color:var(--text); min-height:100vh; }
+
+    /* Login screen */
+    #loginScreen { display:flex; align-items:center; justify-content:center; min-height:100vh; background:var(--blue-dark); }
+    .login-box { background:white; padding:3rem; border-radius:20px; max-width:380px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,0.3); }
+    .login-box h1 { font-family:'Playfair Display',serif; color:var(--blue-dark); font-size:1.6rem; margin-bottom:0.5rem; text-align:center; }
+    .login-box p { color:var(--gray); text-align:center; margin-bottom:2rem; font-size:0.9rem; }
+    .login-box input { width:100%; padding:0.9rem 1rem; border:2px solid var(--border); border-radius:10px; font-size:1rem; margin-bottom:1rem; }
+    .login-box input:focus { outline:none; border-color:var(--blue-mid); }
+    .login-box button { width:100%; background:linear-gradient(135deg,var(--blue-mid),var(--blue-dark)); color:white; border:none; padding:1rem; border-radius:10px; font-weight:700; cursor:pointer; font-size:1rem; }
+    .login-error { color:var(--danger); font-size:0.85rem; text-align:center; margin-top:1rem; display:none; }
+
+    /* Admin app */
+    #adminApp { display:none; }
+    header { background:var(--blue-dark); padding:1.5rem 2rem; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
+    .logo { font-family:'Playfair Display',serif; color:white; font-size:1.4rem; font-weight:900; }
+    .logo span { color:#5B9BF8; }
+    .logout-btn { background:rgba(255,255,255,0.1); color:white; border:1px solid rgba(255,255,255,0.2); padding:0.5rem 1rem; border-radius:8px; cursor:pointer; font-size:0.85rem; }
+
+    .container { max-width:1100px; margin:0 auto; padding:2rem; }
+
+    .top-bar { display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:1rem; }
+    .top-bar h2 { font-family:'Playfair Display',serif; color:var(--blue-dark); font-size:1.6rem; }
+    .add-btn { background:linear-gradient(135deg,var(--success),#059669); color:white; border:none; padding:0.8rem 1.5rem; border-radius:10px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:0.5rem; }
+
+    .books-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:1.25rem; }
+    .book-admin-card { background:white; border-radius:14px; overflow:hidden; box-shadow:0 4px 16px rgba(0,0,0,0.08); }
+    .book-admin-cover { height:140px; background-size:cover; background-position:center; position:relative; }
+    .book-admin-cover .cat-badge { position:absolute; top:0.6rem; left:0.6rem; background:rgba(0,0,0,0.6); color:white; padding:0.25rem 0.6rem; border-radius:14px; font-size:0.7rem; font-weight:600; }
+    .book-admin-body { padding:1rem; }
+    .book-admin-title { font-weight:700; font-size:1rem; margin-bottom:0.3rem; }
+    .book-admin-price { color:var(--blue-mid); font-weight:700; font-size:1.1rem; margin-bottom:0.75rem; }
+    .book-admin-meta { font-size:0.75rem; color:var(--gray); margin-bottom:0.75rem; }
+    .book-admin-meta.no-pdf { color:var(--danger); font-weight:600; }
+    .book-admin-actions { display:flex; gap:0.5rem; }
+    .btn-edit, .btn-delete { flex:1; padding:0.6rem; border:none; border-radius:8px; font-weight:600; font-size:0.85rem; cursor:pointer; }
+    .btn-edit { background:var(--blue-pale); color:var(--blue-mid); }
+    .btn-delete { background:#FEE2E2; color:var(--danger); }
+
+    /* Modal */
+    .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1000; align-items:center; justify-content:center; padding:1rem; }
+    .modal-overlay.active { display:flex; }
+    .modal-box { background:white; border-radius:18px; padding:2rem; max-width:520px; width:100%; max-height:90vh; overflow-y:auto; }
+    .modal-box h3 { font-family:'Playfair Display',serif; color:var(--blue-dark); font-size:1.4rem; margin-bottom:1.25rem; }
+    .form-row { margin-bottom:1rem; }
+    .form-row label { display:block; font-weight:600; font-size:0.85rem; margin-bottom:0.4rem; }
+    .form-row input, .form-row textarea, .form-row select { width:100%; padding:0.75rem; border:2px solid var(--border); border-radius:8px; font-size:0.9rem; font-family:'Inter',sans-serif; }
+    .form-row textarea { resize:vertical; min-height:70px; }
+    .form-row small { color:var(--gray); font-size:0.75rem; display:block; margin-top:0.3rem; }
+    .two-col { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+    .modal-actions { display:flex; gap:0.75rem; margin-top:1.5rem; }
+    .btn-cancel, .btn-save { flex:1; padding:0.9rem; border:none; border-radius:10px; font-weight:700; cursor:pointer; }
+    .btn-cancel { background:#F3F4F6; color:var(--text); }
+    .btn-save { background:linear-gradient(135deg,var(--blue-mid),var(--blue-dark)); color:white; }
+
+    .empty-state { text-align:center; padding:4rem 2rem; color:var(--gray); }
+    .toast { position:fixed; bottom:2rem; left:50%; transform:translateX(-50%); background:var(--blue-dark); color:white; padding:1rem 1.5rem; border-radius:10px; display:none; z-index:2000; font-weight:600; }
+    .toast.show { display:block; animation:slideUp 0.3s ease; }
+    @keyframes slideUp { from{opacity:0;transform:translate(-50%,20px)} to{opacity:1;transform:translate(-50%,0)} }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+    <div class="login-box">
+        <h1>📚 Admin Pascal</h1>
+        <p>Connecte-toi pour gérer ta boutique</p>
+        <input type="password" id="passwordInput" placeholder="Mot de passe admin">
+        <button onclick="login()">Se connecter</button>
+        <p class="login-error" id="loginError">❌ Mot de passe incorrect</p>
+    </div>
+</div>
+
+<!-- ADMIN APP -->
+<div id="adminApp">
+    <header>
+        <div class="logo">📚 Admin <span>Pascal</span></div>
+        <button class="logout-btn" onclick="logout()">Déconnexion</button>
+    </header>
+
+    <div class="container">
+        <div class="top-bar">
+            <h2>Mes Livres & Formations</h2>
+            <button class="add-btn" onclick="openForm()">➕ Ajouter un livre</button>
+        </div>
+        <div class="books-grid" id="booksGrid"></div>
+    </div>
+</div>
+
+<!-- MODAL FORM -->
+<div class="modal-overlay" id="modalOverlay">
+    <div class="modal-box">
+        <h3 id="modalTitle">Ajouter un livre</h3>
+        <form id="bookForm" onsubmit="saveBook(event)">
+            <input type="hidden" id="bookId">
+
+            <div class="two-col">
+                <div class="form-row">
+                    <label>Catégorie</label>
+                    <select id="category">
+                        <option value="Livres">📖 Livres</option>
+                        <option value="Formations">🎓 Formations</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Type d'étiquette</label>
+                    <select id="type">
+                        <option value="livre">livre</option>
+                        <option value="formation">formation</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <label>Titre *</label>
+                <input type="text" id="title" required placeholder="Ex: Comment Draguer Sans Se Ridiculiser">
+            </div>
+
+            <div class="form-row">
+                <label>Description courte *</label>
+                <textarea id="description" required placeholder="Description visible sur la carte du livre"></textarea>
+            </div>
+
+            <div class="form-row">
+                <label>Importance (uniquement pour formations)</label>
+                <textarea id="importance" placeholder="Ce que le client va apprendre..."></textarea>
+            </div>
+
+            <div class="form-row">
+                <label>Prix (FCFA) *</label>
+                <input type="number" id="price" required placeholder="8000">
+            </div>
+
+            <div class="form-row">
+                <label>Lien image de couverture</label>
+                <input type="text" id="coverImage" placeholder="https://i.imgur.com/xxxxx.png">
+                <small>Upload sur imgur.com puis colle le lien direct ici (optionnel)</small>
+            </div>
+
+            <div class="form-row">
+                <label>🔒 Lien PDF (téléchargement après paiement) *</label>
+                <input type="text" id="pdfLink" required placeholder="https://drive.google.com/uc?export=download&id=XXXX">
+                <small>Lien Google Drive en mode "Tout le monde avec le lien"</small>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" onclick="closeForm()">Annuler</button>
+                <button type="submit" class="btn-save">💾 Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+    const BACKEND_URL = "https://pascal-backend-kd2k.onrender.com";
+    let adminToken = localStorage.getItem('pascalAdminToken') || '';
+    let allBooks = [];
+
+    // ─── Auth ───
+    async function login() {
+        const password = document.getElementById('passwordInput').value;
+        const errorEl = document.getElementById('loginError');
+        try {
+            const res = await fetch(`${BACKEND_URL}/admin/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password })
+            });
+            const data = await res.json();
+            if (data.success) {
+                adminToken = data.token;
+                localStorage.setItem('pascalAdminToken', adminToken);
+                showApp();
+            } else {
+                errorEl.style.display = 'block';
+            }
+        } catch (e) {
+            errorEl.textContent = '❌ Erreur de connexion au serveur';
+            errorEl.style.display = 'block';
+        }
+    }
+
+    function logout() {
+        localStorage.removeItem('pascalAdminToken');
+        adminToken = '';
+        document.getElementById('adminApp').style.display = 'none';
+        document.getElementById('loginScreen').style.display = 'flex';
+    }
+
+    function showApp() {
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('adminApp').style.display = 'block';
+        loadBooks();
+    }
+
+    // ─── Load books ───
+    async function loadBooks() {
+        try {
+            const res = await fetch(`${BACKEND_URL}/admin/books`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            if (res.status === 401) { logout(); return; }
+            const data = await res.json();
+            allBooks = data.books || [];
+            renderBooks();
+        } catch (e) {
+            showToast('❌ Erreur chargement: ' + e.message);
+        }
+    }
+
+    function renderBooks() {
+        const grid = document.getElementById('booksGrid');
+        if (allBooks.length === 0) {
+            grid.innerHTML = '<div class="empty-state">Aucun livre pour le moment.<br>Clique sur "Ajouter un livre" pour commencer !</div>';
+            return;
+        }
+        grid.innerHTML = allBooks.map(b => {
+            const coverStyle = b.coverImage ? `background-image:url('${b.coverImage}')` : `background:${b.cover || 'linear-gradient(135deg,#667eea,#764ba2)'}`;
+            return `
+                <div class="book-admin-card">
+                    <div class="book-admin-cover" style="${coverStyle}">
+                        <span class="cat-badge">${b.category || b.type}</span>
+                    </div>
+                    <div class="book-admin-body">
+                        <div class="book-admin-title">${b.title}</div>
+                        <div class="book-admin-price">${Number(b.price).toLocaleString()} FCFA</div>
+                        <div class="book-admin-meta ${!b.pdfLink ? 'no-pdf' : ''}">
+                            ${b.pdfLink ? '✅ PDF lié' : '⚠️ Aucun PDF lié !'}
+                        </div>
+                        <div class="book-admin-actions">
+                            <button class="btn-edit" onclick="editBook(${b.id})">✏️ Modifier</button>
+                            <button class="btn-delete" onclick="deleteBook(${b.id})">🗑️ Supprimer</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // ─── Form ───
+    function openForm() {
+        document.getElementById('modalTitle').textContent = 'Ajouter un livre';
+        document.getElementById('bookForm').reset();
+        document.getElementById('bookId').value = '';
+        document.getElementById('modalOverlay').classList.add('active');
+    }
+
+    function editBook(id) {
+        const book = allBooks.find(b => b.id === id);
+        if (!book) return;
+        document.getElementById('modalTitle').textContent = 'Modifier le livre';
+        document.getElementById('bookId').value = book.id;
+        document.getElementById('category').value = book.category || 'Livres';
+        document.getElementById('type').value = book.type || 'livre';
+        document.getElementById('title').value = book.title || '';
+        document.getElementById('description').value = book.description || '';
+        document.getElementById('importance').value = book.importance || '';
+        document.getElementById('price').value = book.price || '';
+        document.getElementById('coverImage').value = book.coverImage || '';
+        document.getElementById('pdfLink').value = book.pdfLink || '';
+        document.getElementById('modalOverlay').classList.add('active');
+    }
+
+    function closeForm() {
+        document.getElementById('modalOverlay').classList.remove('active');
+    }
+
+    async function saveBook(event) {
+        event.preventDefault();
+        const id = document.getElementById('bookId').value;
+        const payload = {
+            category: document.getElementById('category').value,
+            type: document.getElementById('type').value,
+            title: document.getElementById('title').value,
+            description: document.getElementById('description').value,
+            importance: document.getElementById('importance').value,
+            price: Number(document.getElementById('price').value),
+            coverImage: document.getElementById('coverImage').value,
+            cover: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            pdfLink: document.getElementById('pdfLink').value
+        };
+
+        try {
+            let res;
+            if (id) {
+                res = await fetch(`${BACKEND_URL}/admin/books/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
+                    body: JSON.stringify(payload)
+                });
+            } else {
+                res = await fetch(`${BACKEND_URL}/admin/books`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
+                    body: JSON.stringify(payload)
+                });
+            }
+            const data = await res.json();
+            if (data.success) {
+                showToast(id ? '✅ Livre modifié !' : '✅ Livre ajouté !');
+                closeForm();
+                loadBooks();
+            } else {
+                showToast('❌ ' + (data.error || 'Erreur'));
+            }
+        } catch (e) {
+            showToast('❌ Erreur: ' + e.message);
+        }
+    }
+
+    async function deleteBook(id) {
+        if (!confirm('Supprimer ce livre définitivement ?')) return;
+        try {
+            const res = await fetch(`${BACKEND_URL}/admin/books/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast('🗑️ Livre supprimé');
+                loadBooks();
+            }
+        } catch (e) {
+            showToast('❌ Erreur: ' + e.message);
+        }
+    }
+
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    document.getElementById('passwordInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') login();
+    });
+
+    // Auto-login si token déjà sauvegardé
+    if (adminToken) {
+        showApp();
+    }
+</script>
+</body>
+</html>
