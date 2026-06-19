@@ -277,6 +277,19 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // ─── Servir admin.html (page statique) ───
+  if (req.method === 'GET' && pathname === '/admin.html') {
+    try {
+      const adminFile = fs.readFileSync(path.join(__dirname, 'admin.html'), 'utf8');
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+      res.end(adminFile);
+    } catch (e) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('admin.html non trouvé sur le serveur');
+    }
+    return;
+  }
+
   return respond(res, 404, { error: 'Route non trouvée' });
 });
 
