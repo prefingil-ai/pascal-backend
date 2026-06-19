@@ -1,31 +1,62 @@
 const https = require('https');
 const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
 
 const SECRET_KEY = process.env.YABETOO_SECRET_KEY;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "pascal2026";
-const YABETOO_API = "pay.api.yabetoopay.com";
-const DB_FILE = path.join(__dirname, 'books.json');
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+const GITHUB_OWNER = process.env.GITHUB_OWNER || "prefingil-ai";
+const GITHUB_REPO = process.env.GITHUB_REPO || "pascal-backend";
+const GITHUB_FILE_PATH = "books.json";
 
-// ─── Base de données simple (fichier JSON) ───
-function loadBooks() {
-  try {
-    if (!fs.existsSync(DB_FILE)) {
-      const defaultBooks = getDefaultBooks();
-      fs.writeFileSync(DB_FILE, JSON.stringify(defaultBooks, null, 2));
-      return defaultBooks;
-    }
-    return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-  } catch (e) {
-    return getDefaultBooks();
-  }
+const YABETOOPAY_HOST = "pay.api.yabetoopay.com";
+const GITHUB_HOST = "api.github.com";
+
+// ───────────────────────── Helpers HTTP génériques ─────────────────────────
+function httpsRequest(hostname, path, method, headers, body) {
+  return new Promise((resolve, reject) => {
+    const data = body ? JSON.stringify(body) : null;
+    const reqHeaders = Object.assign({}, headers);
+    if (data) reqHeaders['Content-Length'] = Buffer.byteLength(data);
+
+    const options = { hostname, path, method, headers: reqHeaders };
+
+    const req = https.request(options, (res) => {
+      let responseData = '';
+      res.on('data', (chunk) => responseData += chunk);
+      res.on('end', () => {
+        try {
+          resolve({ status: res.statusCode, data: JSON.parse(responseData) });
+        } catch (e) {
+          resolve({ status: res.statusCode, data: { raw: responseData } });
+        }
+      });
+    });
+    req.on('error', reject);
+    if (data) req.write(data);
+    req.end();
+  });
 }
 
-function saveBooks(books) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(books, null, 2));
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Content-Type': 'application/json'
+  };
 }
+
+function respond(res, statusCode, data) {
+  res.writeHead(statusCode, corsHeaders());
+  res.end(JSON.stringify(data));
+}
+
+// ───────────────────────── Stockage des livres sur GitHub ─────────────────────────
+// On stocke books.json directement dans le repo GitHub via l'API Contents.
+// Ça survit aux redéploiements Render car ce n'est pas stocké localement.
+
+let booksCache = null;
+let booksSha = null; // nécessaire pour les updates sur GitHub
 
 function getDefaultBooks() {
   return [
@@ -56,50 +87,90 @@ function getDefaultBooks() {
   ];
 }
 
-function corsHeaders() {
-  return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Content-Type': 'application/json'
+const ghHeaders = () => ({
+  'Authorization': `Bearer ${GITHUB_TOKEN}`,
+  'User-Agent': 'pascal-backend',
+  'Accept': 'application/vnd.github+json'
+});
+
+async function loadBooksFromGitHub() {
+  if (!GITHUB_TOKEN) {
+    console.log('⚠️ GITHUB_TOKEN manquant, utilisation des livres par défaut (non persistant)');
+    return getDefaultBooks();
+  }
+  try {
+    const result = await httpsRequest(
+      GITHUB_HOST,
+      `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`,
+      'GET',
+      ghHeaders()
+    );
+
+    if (result.status === 404) {
+      // Le fichier n'existe pas encore sur GitHub -> on le crée avec les défauts
+      const defaults = getDefaultBooks();
+      await saveBooksToGitHub(defaults, null);
+      return defaults;
+    }
+
+    if (result.status !== 200) {
+      console.log('Erreur lecture GitHub:', result.status, JSON.stringify(result.data));
+      return booksCache || getDefaultBooks();
+    }
+
+    booksSha = result.data.sha;
+    const content = Buffer.from(result.data.content, 'base64').toString('utf8');
+    const books = JSON.parse(content);
+    booksCache = books;
+    return books;
+
+  } catch (e) {
+    console.log('Exception loadBooksFromGitHub:', e.message);
+    return booksCache || getDefaultBooks();
+  }
+}
+
+async function saveBooksToGitHub(books, currentSha) {
+  if (!GITHUB_TOKEN) {
+    booksCache = books;
+    return { success: false, error: 'GITHUB_TOKEN manquant - sauvegarde non persistante' };
+  }
+
+  const content = Buffer.from(JSON.stringify(books, null, 2)).toString('base64');
+
+  const body = {
+    message: `Update books.json - ${new Date().toISOString()}`,
+    content: content
   };
+  if (currentSha) body.sha = currentSha;
+
+  const result = await httpsRequest(
+    GITHUB_HOST,
+    `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`,
+    'PUT',
+    ghHeaders(),
+    body
+  );
+
+  if (result.status === 200 || result.status === 201) {
+    booksSha = result.data.content.sha;
+    booksCache = books;
+    return { success: true };
+  }
+
+  console.log('Erreur sauvegarde GitHub:', result.status, JSON.stringify(result.data));
+  return { success: false, error: result.data.message || 'Erreur sauvegarde GitHub' };
 }
 
-function respond(res, statusCode, data) {
-  res.writeHead(statusCode, corsHeaders());
-  res.end(JSON.stringify(data));
-}
-
+// ───────────────────────── YaBeTooPay ─────────────────────────
 function callYabetoo(method, urlPath, body) {
-  return new Promise((resolve, reject) => {
-    const data = JSON.stringify(body);
-    const options = {
-      hostname: YABETOO_API,
-      path: urlPath,
-      method: method,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SECRET_KEY}`,
-        'Content-Length': Buffer.byteLength(data)
-      }
-    };
-    const req = https.request(options, (res) => {
-      let responseData = '';
-      res.on('data', (chunk) => responseData += chunk);
-      res.on('end', () => {
-        try {
-          resolve({ status: res.statusCode, data: JSON.parse(responseData) });
-        } catch(e) {
-          resolve({ status: res.statusCode, data: { error: responseData } });
-        }
-      });
-    });
-    req.on('error', reject);
-    req.write(data);
-    req.end();
-  });
+  return httpsRequest(YABETOOPAY_HOST, urlPath, method, {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${SECRET_KEY}`
+  }, body);
 }
 
+// ───────────────────────── Auth & body parsing ─────────────────────────
 function checkAdminAuth(req) {
   const auth = req.headers['authorization'];
   if (!auth) return false;
@@ -108,20 +179,18 @@ function checkAdminAuth(req) {
 }
 
 function readBody(req) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', () => {
-      try {
-        resolve(body ? JSON.parse(body) : {});
-      } catch(e) {
-        resolve({});
-      }
+      try { resolve(body ? JSON.parse(body) : {}); }
+      catch (e) { resolve({}); }
     });
-    req.on('error', reject);
+    req.on('error', () => resolve({}));
   });
 }
 
+// ───────────────────────── Serveur HTTP ─────────────────────────
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(200, corsHeaders());
@@ -134,13 +203,31 @@ const server = http.createServer(async (req, res) => {
 
   // ─── Health check ───
   if (req.method === 'GET' && pathname === '/') {
-    return respond(res, 200, { status: 'ok', message: 'Boutique Pascal Backend' });
+    return respond(res, 200, {
+      status: 'ok',
+      message: 'Boutique Pascal Backend',
+      storage: GITHUB_TOKEN ? 'GitHub (persistant)' : 'Mémoire (NON persistant - configure GITHUB_TOKEN)'
+    });
   }
 
-  // ─── GET /books (public - liste des livres) ───
+  // ─── Servir admin.html ───
+  if (req.method === 'GET' && pathname === '/admin.html') {
+    const fs = require('fs');
+    const path = require('path');
+    try {
+      const adminFile = fs.readFileSync(path.join(__dirname, 'admin.html'), 'utf8');
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+      res.end(adminFile);
+    } catch (e) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('admin.html non trouvé sur le serveur');
+    }
+    return;
+  }
+
+  // ─── GET /books (public) ───
   if (req.method === 'GET' && pathname === '/books') {
-    const books = loadBooks();
-    // Ne pas exposer le pdfLink publiquement (sécurité)
+    const books = await loadBooksFromGitHub();
     const publicBooks = books.map(b => {
       const { pdfLink, ...rest } = b;
       return rest;
@@ -157,18 +244,18 @@ const server = http.createServer(async (req, res) => {
     return respond(res, 401, { error: 'Mot de passe incorrect' });
   }
 
-  // ─── ADMIN: Liste complète (avec pdfLink) ───
+  // ─── ADMIN: Liste complète ───
   if (req.method === 'GET' && pathname === '/admin/books') {
     if (!checkAdminAuth(req)) return respond(res, 401, { error: 'Non autorisé' });
-    const books = loadBooks();
-    return respond(res, 200, { books });
+    const books = await loadBooksFromGitHub();
+    return respond(res, 200, { books, storage: GITHUB_TOKEN ? 'github' : 'memory' });
   }
 
   // ─── ADMIN: Ajouter un livre ───
   if (req.method === 'POST' && pathname === '/admin/books') {
     if (!checkAdminAuth(req)) return respond(res, 401, { error: 'Non autorisé' });
     const body = await readBody(req);
-    const books = loadBooks();
+    const books = await loadBooksFromGitHub();
     const newId = books.length > 0 ? Math.max(...books.map(b => b.id)) + 1 : 1;
     const newBook = {
       id: newId,
@@ -183,7 +270,10 @@ const server = http.createServer(async (req, res) => {
       pdfLink: body.pdfLink || ""
     };
     books.push(newBook);
-    saveBooks(books);
+    const saveResult = await saveBooksToGitHub(books, booksSha);
+    if (!saveResult.success) {
+      return respond(res, 500, { error: saveResult.error });
+    }
     return respond(res, 200, { success: true, book: newBook });
   }
 
@@ -192,11 +282,14 @@ const server = http.createServer(async (req, res) => {
     if (!checkAdminAuth(req)) return respond(res, 401, { error: 'Non autorisé' });
     const id = Number(pathname.split('/').pop());
     const body = await readBody(req);
-    const books = loadBooks();
+    const books = await loadBooksFromGitHub();
     const idx = books.findIndex(b => b.id === id);
     if (idx === -1) return respond(res, 404, { error: 'Livre non trouvé' });
     books[idx] = { ...books[idx], ...body, id };
-    saveBooks(books);
+    const saveResult = await saveBooksToGitHub(books, booksSha);
+    if (!saveResult.success) {
+      return respond(res, 500, { error: saveResult.error });
+    }
     return respond(res, 200, { success: true, book: books[idx] });
   }
 
@@ -204,23 +297,26 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'DELETE' && pathname.startsWith('/admin/books/')) {
     if (!checkAdminAuth(req)) return respond(res, 401, { error: 'Non autorisé' });
     const id = Number(pathname.split('/').pop());
-    let books = loadBooks();
+    let books = await loadBooksFromGitHub();
     books = books.filter(b => b.id !== id);
-    saveBooks(books);
+    const saveResult = await saveBooksToGitHub(books, booksSha);
+    if (!saveResult.success) {
+      return respond(res, 500, { error: saveResult.error });
+    }
     return respond(res, 200, { success: true });
   }
 
-  // ─── PAYMENT: Créer un payment intent ───
+  // ─── PAYMENT ───
   if (req.method === 'POST' && pathname === '/payment') {
     if (!SECRET_KEY) {
-      return respond(res, 500, { error: 'Clé secrète manquante' });
+      return respond(res, 500, { error: 'Clé secrète YaBeTooPay manquante' });
     }
     const payload = await readBody(req);
     const { action } = payload;
 
     try {
       if (action === 'create') {
-        const books = loadBooks();
+        const books = await loadBooksFromGitHub();
         const book = books.find(b => b.id === Number(payload.bookId));
         if (!book) return respond(res, 404, { error: 'Livre non trouvé' });
 
@@ -257,9 +353,8 @@ const server = http.createServer(async (req, res) => {
           }
         });
 
-        // Si paiement réussi, on renvoie le lien PDF
         if (result.data.status === 'succeeded') {
-          const books = loadBooks();
+          const books = await loadBooksFromGitHub();
           const book = books.find(b => b.id === Number(payload.bookId));
           return respond(res, 200, {
             ...result.data,
@@ -277,23 +372,11 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // ─── Servir admin.html (page statique) ───
-  if (req.method === 'GET' && pathname === '/admin.html') {
-    try {
-      const adminFile = fs.readFileSync(path.join(__dirname, 'admin.html'), 'utf8');
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
-      res.end(adminFile);
-    } catch (e) {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('admin.html non trouvé sur le serveur');
-    }
-    return;
-  }
-
   return respond(res, 404, { error: 'Route non trouvée' });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Boutique Pascal Backend démarré sur port ${PORT}`);
+  console.log(`Stockage: ${GITHUB_TOKEN ? 'GitHub (persistant) ✅' : 'Mémoire uniquement (NON persistant) ⚠️'}`);
 });
