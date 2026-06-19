@@ -1,17 +1,5 @@
 [
   {
-    "id": 1,
-    "category": "Formations",
-    "title": "Marketing Digital Avancé",
-    "type": "formation",
-    "description": "Maîtrisez les stratégies de marketing digital pour développer votre business en ligne.",
-    "importance": "SEO, publicité Facebook/Instagram, email marketing, analytics.",
-    "price": 15000,
-    "cover": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-    "coverImage": "",
-    "pdfLink": ""
-  },
-  {
     "id": 3,
     "category": "Livres",
     "title": "Entrepreneuriat au Congo",
