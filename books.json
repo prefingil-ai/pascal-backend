@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "id": 1,
+    "category": "Formations",
+    "title": "REUSSIR au bac c et bac D , 500 exos et corrigées",
+    "type": "formation",
+    "description": "un accompagneuteur des meilleurs",
+    "importance": "tu as les bases et tu deviens excellent",
+    "price": 2000,
+    "cover": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    "coverImage": "https://imgur.com/a/w3OhADe",
+    "pdfLink": "https://drive.google.com/file/d/1hgyM9XKJAYMiHuV2HIsz6U-mHw0psMVM/view?usp=sharing"
+  }
+]
