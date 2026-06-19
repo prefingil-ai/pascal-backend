@@ -1,7 +1,7 @@
 {
   "name": "pascal-backend",
-  "version": "1.0.0",
-  "description": "Backend paiement Boutique Pascal",
+  "version": "2.0.0",
+  "description": "Backend Boutique Pascal avec admin",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
