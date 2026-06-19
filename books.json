@@ -1,14 +1,1 @@
-[
-  {
-    "id": 3,
-    "category": "Livres",
-    "title": "Entrepreneuriat au Congo",
-    "type": "livre",
-    "description": "Guide pratique pour créer et développer une entreprise prospère au Congo-Brazzaville.",
-    "importance": "",
-    "price": 8000,
-    "cover": "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
-    "coverImage": "",
-    "pdfLink": ""
-  }
-]
+[]
