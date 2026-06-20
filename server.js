@@ -130,6 +130,24 @@ async function loadBooksFromGitHub() {
   }
 }
 
+async function getLatestSha() {
+  if (!GITHUB_TOKEN) return null;
+  try {
+    const result = await httpsRequest(
+      GITHUB_HOST,
+      `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`,
+      'GET',
+      ghHeaders()
+    );
+    if (result.status === 200) {
+      return result.data.sha;
+    }
+    return null; // fichier n'existe pas encore
+  } catch (e) {
+    return null;
+  }
+}
+
 async function saveBooksToGitHub(books, currentSha) {
   if (!GITHUB_TOKEN) {
     booksCache = books;
@@ -138,19 +156,36 @@ async function saveBooksToGitHub(books, currentSha) {
 
   const content = Buffer.from(JSON.stringify(books, null, 2)).toString('base64');
 
+  // Toujours récupérer le sha le plus frais juste avant d'écrire,
+  // pour éviter les erreurs 409 (conflit de version)
+  const freshSha = await getLatestSha();
+
   const body = {
     message: `Update books.json - ${new Date().toISOString()}`,
     content: content
   };
-  if (currentSha) body.sha = currentSha;
+  if (freshSha) body.sha = freshSha;
 
-  const result = await httpsRequest(
+  let result = await httpsRequest(
     GITHUB_HOST,
     `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`,
     'PUT',
     ghHeaders(),
     body
   );
+
+  // Si malgré tout on a un conflit (course entre 2 requêtes), on retente une fois
+  if (result.status === 409) {
+    const retrySha = await getLatestSha();
+    body.sha = retrySha;
+    result = await httpsRequest(
+      GITHUB_HOST,
+      `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`,
+      'PUT',
+      ghHeaders(),
+      body
+    );
+  }
 
   if (result.status === 200 || result.status === 201) {
     booksSha = result.data.content.sha;
@@ -352,6 +387,16 @@ const server = http.createServer(async (req, res) => {
             }
           }
         });
+
+        console.log('YaBeTooPay confirm status HTTP:', result.status);
+        console.log('YaBeTooPay confirm response:', JSON.stringify(result.data));
+
+        // Si YaBeTooPay renvoie une erreur HTTP (4xx/5xx), on transmet le message exact
+        if (result.status >= 400) {
+          return respond(res, 200, {
+            error: result.data.message || result.data.error || `Erreur YaBeTooPay (${result.status}): ${JSON.stringify(result.data)}`
+          });
+        }
 
         if (result.data.status === 'succeeded') {
           const books = await loadBooksFromGitHub();
