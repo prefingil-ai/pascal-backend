@@ -391,10 +391,27 @@ const server = http.createServer(async (req, res) => {
         console.log('YaBeTooPay confirm status HTTP:', result.status);
         console.log('YaBeTooPay confirm response:', JSON.stringify(result.data));
 
-        // Si YaBeTooPay renvoie une erreur HTTP (4xx/5xx), on transmet le message exact
+        // Si YaBeTooPay renvoie une erreur HTTP (4xx/5xx), on transmet un message clair
         if (result.status >= 400) {
+          const errorCode = result.data.code || '';
+          const rawMessage = result.data.message || '';
+          let friendlyMessage = "Le paiement n'a pas pu être effectué. Veuillez réessayer.";
+
+          if (errorCode === 'E_INVALID_STATE_TRANSITION' || rawMessage.includes("cannot move from 'failed'")) {
+            friendlyMessage = "Solde insuffisant ou paiement refusé. Vérifiez votre solde Mobile Money, puis recommencez l'achat depuis le début.";
+          } else if (rawMessage.toLowerCase().includes('insufficient') || rawMessage.toLowerCase().includes('balance')) {
+            friendlyMessage = "Solde insuffisant sur votre compte Mobile Money. Veuillez recharger puis réessayer.";
+          } else if (rawMessage.toLowerCase().includes('phone') || rawMessage.toLowerCase().includes('msisdn')) {
+            friendlyMessage = "Numéro de téléphone invalide ou non reconnu par l'opérateur choisi.";
+          } else if (rawMessage.toLowerCase().includes('expired')) {
+            friendlyMessage = "La session de paiement a expiré. Veuillez recommencer l'achat depuis le début.";
+          } else if (rawMessage.toLowerCase().includes('cancel')) {
+            friendlyMessage = "Le paiement a été annulé. Veuillez réessayer.";
+          }
+
           return respond(res, 200, {
-            error: result.data.message || result.data.error || `Erreur YaBeTooPay (${result.status}): ${JSON.stringify(result.data)}`
+            error: friendlyMessage,
+            technicalDetails: rawMessage
           });
         }
 
